@@ -7,7 +7,7 @@ function authHeaders() {
         'Authorization': 'Bearer ' + localStorage.getItem('st_token')
     };
 }
-const API = 'https://securetask6h.vercel.app/api';
+const API = 'https://securetask6.vercel.app/api';
 // ─── AUTH ───
 function isLoggedIn() {
     return !!localStorage.getItem('st_token');
@@ -24,12 +24,6 @@ function requireAuth() {
 
 function getUser() {
     return JSON.parse(localStorage.getItem('securetask_user') || '{}');
-}
-
-function logout() {
-    localStorage.removeItem('securetask_logged');
-    localStorage.removeItem('securetask_user');
-    window.location.href = 'connexion.html';
 }
 
 // ─── LOGIN ───
@@ -88,8 +82,7 @@ function initRegister() {
         const email    = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
         const confirm     = document.getElementById('confirm-password').value;
-        const role        = document.getElementById('role').value.trim();
-        const codeAcces   = document.getElementById('code-acces').value.trim().toUpperCase();   
+        const codeAcces   = document.getElementById('code-acces').value.trim().toUpperCase();
 
         const errEl = document.getElementById('register-error');
         const sucEl = document.getElementById('register-success');
@@ -97,12 +90,6 @@ function initRegister() {
         errEl.style.display = 'none';
         sucEl.style.display = 'none';
         
-        // Vérification rôle
-        if (!role) {
-            errEl.style.display = 'block';
-            errEl.textContent = 'Veuillez sélectionner un rôle.';
-            return;
-        }
         // Vérification mot de passe
         if (password !== confirm) {
             errEl.style.display = 'block';
@@ -127,7 +114,6 @@ function initRegister() {
                     nom,
                     email,
                     password,
-                    role,
                     codeAcces
                 })
             });
@@ -179,17 +165,25 @@ async function loadTasks() {
 
 async function saveTask(task) {
     try {
-        const res = await fetch(`${API}/taches`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(task) });
-        
-        return await res.json();
+        const res = await fetch(`${API}/taches`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(task)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || data.message || 'Accès refusé.', 'error');
+            return null;
+        }
+        return data;
     } catch (err) {
         console.error('Erreur sauvegarde:', err);
+        return null;
     }
 }
-
 async function deleteTask(id) {
     try {
-        await fetch(`${API}/taches/${id}`, { method: 'DELETE' });
+        await fetch(`${API}/taches/${id}`, { method: 'DELETE', headers: authHeaders() });
         showToast('Tâche supprimée.', 'info');
     } catch (err) {
         console.error('Erreur suppression:', err);
@@ -200,7 +194,7 @@ async function updateTaskStatus(id, newStatus) {
     try {
         await fetch(`${API}/taches/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ statut: newStatus })
         });
     } catch (err) {
@@ -616,16 +610,18 @@ function initNewTaskForm() {
             labels
         };
 
-        await saveTask(task);
-        showToast('Tâche créée avec succès !', 'success');
-        setTimeout(() => window.location.href = 'taches.html', 1000);
+        const result = await saveTask(task);
+        if (result && result.success) {
+    showToast('Tâche créée avec succès !', 'success');
+    setTimeout(() => window.location.href = 'taches.html', 1000);
+}
     });
 }
 
 // ─── ÉQUIPE ───
 async function renderTeam() {
     try {
-        const res = await fetch(`${API}/users`);
+        const res = await fetch(`${API}/users`, { headers: authHeaders() });
         const users = await res.json();
         const tasks = await loadTasks();
 

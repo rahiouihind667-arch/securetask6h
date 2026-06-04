@@ -53,6 +53,16 @@ async function initDB() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+        await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        event TEXT,
+        user_id INTEGER,
+        ip TEXT,
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
 
         const result = await pool.query(
             'SELECT COUNT(*) FROM users'
@@ -138,18 +148,15 @@ app.post('/api/login', async (req, res) => {
 
         const motDePasseCorrect = user && await bcrypt.compare(password, user.mot_de_passe);
         if (motDePasseCorrect) {
+            const token = jwt.sign(
+                { id: user.id, role: user.role, email: user.email, nom: user.nom },
+                process.env.JWT_SECRET,
+                { expiresIn: '8h' }
+            );
             await logEvent('LOGIN_OK', user.id, req.ip, user.email);
-            return res.json({
-                success: true,
-                user: {
-                    id: user.id,
-                    nom: user.nom,
-                    email: user.email,
-                    role: user.role
-                }
-            });
+            return res.json({ success: true, token });
         }
-        await logEvent('LOGIN_FAIL', null, req.ip, email);
+        await logEvent('LOGIN_FAIL', null, req.ip, email);s
         res.status(401).json({
             success: false,
             message: 'Email ou mot de passe incorrect'
