@@ -587,7 +587,14 @@ async function openDayModal(dateStr) {
 }
 
 // ─── NOUVELLE TÂCHE ───
+
 function initNewTaskForm() {
+    const user = getUser();
+    if (user.role === 'Observateur') {
+        showToast('Accès refusé — rôle insuffisant.', 'error');
+        setTimeout(() => window.location.href = 'taches.html', 1500);
+        return;
+    }
     document.querySelectorAll('.checkbox-label').forEach(label => {
         label.addEventListener('click', () => {
             const input = label.querySelector('input');
