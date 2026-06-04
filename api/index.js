@@ -123,11 +123,18 @@ module.exports = async (req, res) => {
 
         // ── REGISTER ──
         if (url.includes('/register') && method === 'POST') {
-            const { nom, email, password, role, codeAcces } = req.body;
+            const { nom, email, password, codeAcces } = req.body;
 
-            if (!codeAcces || codeAcces.toUpperCase() !== process.env.ACCESS_CODE) {
-                return res.status(403).json({ success: false, message: "Code d'accès invalide." });
-            }
+            const ROLE_BY_CODE = {
+    [process.env.ACCESS_CODE_LEAD]: 'Lead Securite',
+    [process.env.ACCESS_CODE_SSI]:  'Ingenieur SSI',
+    [process.env.ACCESS_CODE_OBS]:  'Observateur',
+};
+
+            const role = ROLE_BY_CODE[codeAcces?.toUpperCase()];
+if (!role) {
+    return res.status(403).json({ success: false, message: "Code d'accès invalide." });
+}
 
             if (!nom || !email || !password || !role) {
                 return res.status(400).json({ success: false, message: 'Tous les champs sont obligatoires.' });
