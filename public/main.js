@@ -66,11 +66,9 @@ function initLogin() {
             errEl.textContent = 'Erreur de connexion au serveur.';
         }
     });
-    
 }
 
 // ─── REGISTER ───
-
 function initRegister() {
     const form = document.getElementById('register-form');
     if (!form) return;
@@ -78,26 +76,24 @@ function initRegister() {
     form.addEventListener('submit', async e => {
         e.preventDefault();
 
-        const nom      = document.getElementById('nom').value.trim();
-        const email    = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
-        const confirm     = document.getElementById('confirm-password').value;
-        const codeAcces   = document.getElementById('code-acces').value.trim().toUpperCase();
+        const nom       = document.getElementById('nom').value.trim();
+        const email     = document.getElementById('email').value.trim();
+        const password  = document.getElementById('password').value;
+        const confirm   = document.getElementById('confirm-password').value;
+        const codeAcces = document.getElementById('code-acces').value.trim().toUpperCase();
 
         const errEl = document.getElementById('register-error');
         const sucEl = document.getElementById('register-success');
 
         errEl.style.display = 'none';
         sucEl.style.display = 'none';
-        
-        // Vérification mot de passe
+
         if (password !== confirm) {
             errEl.style.display = 'block';
             errEl.textContent = 'Les mots de passe ne correspondent pas.';
             return;
         }
 
-        // Vérification longueur
         if (password.length < 6) {
             errEl.style.display = 'block';
             errEl.textContent = 'Le mot de passe doit contenir au moins 6 caractères.';
@@ -107,15 +103,8 @@ function initRegister() {
         try {
             const res = await fetch(`${API}/register`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    nom,
-                    email,
-                    password,
-                    codeAcces
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nom, email, password, codeAcces })
             });
 
             const data = await res.json();
@@ -123,30 +112,24 @@ function initRegister() {
             if (data.success) {
                 sucEl.style.display = 'block';
                 sucEl.textContent = 'Compte créé avec succès !';
-
-                setTimeout(() => {
-                    window.location.href = 'connexion.html';
-                }, 1500);
-
+                setTimeout(() => { window.location.href = 'connexion.html'; }, 1500);
             } else {
                 errEl.style.display = 'block';
                 errEl.textContent = data.message || 'Erreur lors de la création.';
             }
-
         } catch (err) {
             console.error(err);
-
             errEl.style.display = 'block';
             errEl.textContent = 'Erreur serveur.';
         }
     });
 }
+
 // ─── TÂCHES ───
 async function loadTasks() {
     try {
         const res = await fetch(`${API}/taches`, { headers: authHeaders() });
         const tasks = await res.json();
-        // Convertir le format base de données → format application
         return tasks.map(t => ({
             id: t.id,
             titre: t.titre,
@@ -181,31 +164,50 @@ async function saveTask(task) {
         return null;
     }
 }
+
 async function deleteTask(id) {
     try {
-        await fetch(`${API}/taches/${id}`, { method: 'DELETE', headers: authHeaders() });
+        const res = await fetch(`${API}/taches/${id}`, {
+            method: 'DELETE',
+            headers: authHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || 'Suppression refusée.', 'error');
+            return false;
+        }
         showToast('Tâche supprimée.', 'info');
+        return true;
     } catch (err) {
         console.error('Erreur suppression:', err);
+        showToast('Erreur lors de la suppression.', 'error');
+        return false;
     }
 }
 
 async function updateTaskStatus(id, newStatus) {
     try {
-        await fetch(`${API}/taches/${id}`, {
+        const res = await fetch(`${API}/taches/${id}`, {
             method: 'PUT',
             headers: authHeaders(),
             body: JSON.stringify({ statut: newStatus })
         });
+        if (!res.ok) {
+            const data = await res.json();
+            showToast(data.error || 'Modification refusée.', 'error');
+            return false;
+        }
+        return true;
     } catch (err) {
         console.error('Erreur mise à jour:', err);
+        return false;
     }
 }
 
 function filterTasks(tasks, priority, status, search) {
     let filtered = [...tasks];
     if (priority && priority !== 'Tout') filtered = filtered.filter(t => t.priorite === priority);
-    if (status && status !== 'Tout') filtered = filtered.filter(t => t.statut === status);
+    if (status   && status   !== 'Tout') filtered = filtered.filter(t => t.statut   === status);
     if (search) {
         const q = search.toLowerCase();
         filtered = filtered.filter(t => t.titre.toLowerCase().includes(q));
@@ -215,7 +217,7 @@ function filterTasks(tasks, priority, status, search) {
 
 // ─── HELPERS ───
 function prioriteBadge(p) {
-    const map = { 'Critique': 'critique', 'Élevée': 'elevee', 'Moyenne': 'moyenne', 'Basse': 'basse' };
+    const map   = { 'Critique': 'critique', 'Élevée': 'elevee', 'Moyenne': 'moyenne', 'Basse': 'basse' };
     const icons = { 'Critique': '🔴', 'Élevée': '🟠', 'Moyenne': '🟢', 'Basse': '⚪' };
     return `<span class="badge badge-${map[p] || 'basse'}">${icons[p] || ''} ${p}</span>`;
 }
@@ -249,8 +251,8 @@ function prioriteClass(p) {
 
 function isNearDeadline(dateStr) {
     if (!dateStr) return false;
-    const due = new Date(dateStr);
-    const now = new Date();
+    const due  = new Date(dateStr);
+    const now  = new Date();
     const diff = (due - now) / (1000 * 60 * 60 * 24);
     return diff <= 3 && diff >= 0;
 }
@@ -285,15 +287,15 @@ function showToast(msg, type = 'success') {
 function initSidebar() {
     const user = getUser();
     const initialsEl = document.getElementById('user-initials');
-    const nameEl = document.getElementById('user-name');
-    const roleEl = document.getElementById('user-role');
+    const nameEl     = document.getElementById('user-name');
+    const roleEl     = document.getElementById('user-role');
     if (initialsEl) initialsEl.textContent = user.initiales || '?';
-    if (nameEl) nameEl.textContent = user.nom || 'Utilisateur';
-    if (roleEl) roleEl.textContent = user.role || '';
+    if (nameEl)     nameEl.textContent     = user.nom  || 'Utilisateur';
+    if (roleEl)     roleEl.textContent     = user.role || '';
 
     const hamburger = document.getElementById('hamburger');
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
+    const sidebar   = document.querySelector('.sidebar');
+    const overlay   = document.querySelector('.sidebar-overlay');
     if (hamburger && sidebar) {
         hamburger.addEventListener('click', () => {
             sidebar.classList.toggle('open');
@@ -327,17 +329,17 @@ function initSidebar() {
 // ─── DASHBOARD ───
 async function renderDashboard() {
     const tasks = await loadTasks();
-    const user = getUser();
+    const user  = getUser();
 
     const greeting = document.getElementById('greeting');
     if (greeting) greeting.textContent = `Bonjour, ${user.nom} ! 👋`;
 
-    const critiques = tasks.filter(t => t.priorite === 'Critique' && t.statut !== 'Terminé');
-    const enCours = tasks.filter(t => t.statut === 'En cours');
+    const critiques  = tasks.filter(t => t.priorite === 'Critique' && t.statut !== 'Terminé');
+    const enCours    = tasks.filter(t => t.statut === 'En cours');
     const prochaines = tasks.filter(t => isNearDeadline(t.echeance) && t.statut !== 'Terminé');
 
     setEl('stat-critique', critiques.length);
-    setEl('stat-encours', enCours.length);
+    setEl('stat-encours',  enCours.length);
     setEl('stat-echeance', prochaines.length);
 
     const subEl = document.getElementById('greeting-sub');
@@ -348,7 +350,7 @@ async function renderDashboard() {
     }
 
     const myTasks = tasks.filter(t => t.assigneA === user.nom || t.assigneA === 'Toi').slice(0, 5);
-    const listEl = document.getElementById('my-tasks-list');
+    const listEl  = document.getElementById('my-tasks-list');
     if (listEl) {
         listEl.innerHTML = myTasks.length === 0
             ? '<div class="empty-state"><div class="empty-icon">🎉</div><p>Aucune tâche assignée !</p></div>'
@@ -383,13 +385,13 @@ async function renderDashboard() {
 let draggedId = null;
 
 async function renderKanban() {
-    const tasks = await loadTasks();
+    const tasks   = await loadTasks();
     const columns = ['À faire', 'En cours', 'Validé', 'Terminé'];
-    const colIds = { 'À faire': 'afaire', 'En cours': 'encours', 'Validé': 'valide', 'Terminé': 'termine' };
+    const colIds  = { 'À faire': 'afaire', 'En cours': 'encours', 'Validé': 'valide', 'Terminé': 'termine' };
 
     columns.forEach(col => {
-        const colId = colIds[col];
-        const el = document.getElementById(`col-${colId}`);
+        const colId   = colIds[col];
+        const el      = document.getElementById(`col-${colId}`);
         const countEl = document.getElementById(`count-${colId}`);
         if (!el) return;
 
@@ -413,7 +415,7 @@ async function renderKanban() {
             </div>`).join('');
 
         el.querySelectorAll('.kanban-card').forEach(card => {
-            card.addEventListener('dragstart', e => {
+            card.addEventListener('dragstart', () => {
                 draggedId = parseInt(card.dataset.id);
                 card.classList.add('dragging');
             });
@@ -437,9 +439,11 @@ function initDragDrop() {
             col.classList.remove('drag-over');
             const newStatus = col.dataset.statut;
             if (draggedId && newStatus) {
-                await updateTaskStatus(draggedId, newStatus);
-                await renderKanban();
-                showToast(`Tâche déplacée → "${newStatus}"`, 'success');
+                const ok = await updateTaskStatus(draggedId, newStatus);
+                if (ok) {
+                    await renderKanban();
+                    showToast(`Tâche déplacée → "${newStatus}"`, 'success');
+                }
             }
         });
     });
@@ -447,12 +451,14 @@ function initDragDrop() {
 
 async function advanceTask(id, currentStatus) {
     const flow = ['À faire', 'En cours', 'Validé', 'Terminé'];
-    const idx = flow.indexOf(currentStatus);
+    const idx  = flow.indexOf(currentStatus);
     if (idx < flow.length - 1) {
         const next = flow[idx + 1];
-        await updateTaskStatus(id, next);
-        await renderKanban();
-        showToast(`Tâche avancée → ${next}`, 'success');
+        const ok   = await updateTaskStatus(id, next);
+        if (ok) {
+            await renderKanban();
+            showToast(`Tâche avancée → ${next}`, 'success');
+        }
     } else {
         showToast('La tâche est déjà terminée.', 'info');
     }
@@ -482,7 +488,7 @@ async function renderTaskList(tasks) {
             <td>${statutBadge(t.statut)}</td>
             <td>
                 <div style="display:flex;gap:6px;">
-                    <button class="btn btn-danger btn-sm" onclick="confirmDelete(${t.id})">Supprimer</button>
+                    <button class="btn btn-danger btn-sm btn-supprimer" onclick="confirmDelete(${t.id})">Supprimer</button>
                 </div>
             </td>
         </tr>`).join('');
@@ -490,9 +496,12 @@ async function renderTaskList(tasks) {
 
 async function confirmDelete(id) {
     if (confirm('Supprimer cette tâche ?')) {
-        await deleteTask(id);
-        const tasks = await loadTasks();
-        renderTaskList(tasks);
+        const ok = await deleteTask(id);
+        if (ok) {
+            const tasks = await loadTasks();
+            await renderTaskList(tasks);
+            appliquerRestrictionsRole();
+        }
     }
 }
 
@@ -507,8 +516,8 @@ function initTaskListFilters(allTasks) {
         renderTaskList(filtered);
     };
     document.getElementById('filter-priorite')?.addEventListener('change', go);
-    document.getElementById('filter-statut')?.addEventListener('change', go);
-    document.getElementById('filter-search')?.addEventListener('input', go);
+    document.getElementById('filter-statut')?.addEventListener('change',  go);
+    document.getElementById('filter-search')?.addEventListener('input',   go);
 }
 
 // ─── CALENDAR ───
@@ -516,18 +525,18 @@ let calYear, calMonth;
 
 async function renderCalendar(year, month) {
     const tasks = await loadTasks();
-    const now = new Date();
-    calYear = year ?? now.getFullYear();
+    const now   = new Date();
+    calYear  = year  ?? now.getFullYear();
     calMonth = month ?? now.getMonth();
 
     const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-    const titleEl = document.getElementById('cal-month-title');
+    const titleEl    = document.getElementById('cal-month-title');
     if (titleEl) titleEl.textContent = `${monthNames[calMonth]} ${calYear}`;
 
     const grid = document.getElementById('cal-grid');
     if (!grid) return;
 
-    const firstDay = new Date(calYear, calMonth, 1).getDay();
+    const firstDay    = new Date(calYear, calMonth, 1).getDay();
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
     const startOffset = firstDay === 0 ? 6 : firstDay - 1;
 
@@ -537,9 +546,9 @@ async function renderCalendar(year, month) {
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${calYear}-${String(calMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dateStr  = `${calYear}-${String(calMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         const dayTasks = tasks.filter(t => t.echeance && t.echeance.startsWith(dateStr));
-        const isToday = d === now.getDate() && calMonth === now.getMonth() && calYear === now.getFullYear();
+        const isToday  = d === now.getDate() && calMonth === now.getMonth() && calYear === now.getFullYear();
 
         html += `<div class="cal-day${isToday ? ' today' : ''}" onclick="openDayModal('${dateStr}')">
             <div class="cal-day-num">${d}</div>
@@ -552,11 +561,11 @@ async function renderCalendar(year, month) {
 }
 
 async function openDayModal(dateStr) {
-    const tasks = await loadTasks();
+    const tasks    = await loadTasks();
     const dayTasks = tasks.filter(t => t.echeance && t.echeance.startsWith(dateStr));
-    const modal = document.getElementById('day-modal');
-    const title = document.getElementById('day-modal-title');
-    const list = document.getElementById('day-modal-list');
+    const modal    = document.getElementById('day-modal');
+    const title    = document.getElementById('day-modal-title');
+    const list     = document.getElementById('day-modal-list');
     if (!modal) return;
 
     const d = new Date(dateStr + 'T00:00:00');
@@ -592,10 +601,10 @@ function initNewTaskForm() {
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
-        const titre = document.getElementById('titre')?.value.trim();
+        const titre    = document.getElementById('titre')?.value.trim();
         const echeance = document.getElementById('echeance')?.value;
 
-        if (!titre) { showToast('Le titre est obligatoire.', 'error'); return; }
+        if (!titre)    { showToast('Le titre est obligatoire.',    'error'); return; }
         if (!echeance) { showToast("L'échéance est obligatoire.", 'error'); return; }
 
         const labels = Array.from(document.querySelectorAll('.label-checkbox:checked')).map(i => i.value);
@@ -603,25 +612,25 @@ function initNewTaskForm() {
         const task = {
             titre,
             description: document.getElementById('description')?.value || '',
-            priorite: document.getElementById('priorite')?.value || 'Moyenne',
+            priorite:    document.getElementById('priorite')?.value    || 'Moyenne',
             echeance,
-            assigneA: document.getElementById('assigne')?.value || 'Non assigné',
-            statut: 'À faire',
+            assigneA:    document.getElementById('assigne')?.value     || 'Non assigné',
+            statut:      'À faire',
             labels
         };
 
         const result = await saveTask(task);
         if (result && result.success) {
-    showToast('Tâche créée avec succès !', 'success');
-    setTimeout(() => window.location.href = 'taches.html', 1000);
-}
+            showToast('Tâche créée avec succès !', 'success');
+            setTimeout(() => window.location.href = 'taches.html', 1000);
+        }
     });
 }
 
 // ─── ÉQUIPE ───
 async function renderTeam() {
     try {
-        const res = await fetch(`${API}/users`, { headers: authHeaders() });
+        const res   = await fetch(`${API}/users`, { headers: authHeaders() });
         const users = await res.json();
         const tasks = await loadTasks();
 
@@ -630,7 +639,7 @@ async function renderTeam() {
 
         grid.innerHTML = users.map(u => {
             const memberTasks = tasks.filter(t => t.assigneA === u.nom);
-            const open = memberTasks.filter(t => t.statut !== 'Terminé').length;
+            const open        = memberTasks.filter(t => t.statut !== 'Terminé').length;
             return `
                 <div class="team-card">
                     <div class="team-avatar" style="background:${avatarColor(u.nom)}">${initials(u.nom)}</div>
@@ -657,6 +666,21 @@ function initModals() {
     });
 }
 
+// ─── RESTRICTIONS RÔLE ───
+function appliquerRestrictionsRole() {
+    const user = JSON.parse(localStorage.getItem('securetask_user'));
+    if (!user) return;
+
+    if (user.role !== 'Lead Securite') {
+        document.querySelectorAll('.btn-delete, .btn-supprimer')
+            .forEach(b => b.style.display = 'none');
+    }
+    if (user.role === 'Observateur') {
+        document.querySelectorAll('.btn-new-task, .btn-nouvelle-tache')
+            .forEach(b => b.style.display = 'none');
+    }
+}
+
 // ─── INIT ───
 document.addEventListener('DOMContentLoaded', async () => {
     if (localStorage.getItem('securetask_dark') === '1') {
@@ -666,21 +690,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const page = document.body.dataset.page;
 
     if (page === 'login')    { initLogin();    return; }
-    if (page === 'register') { initRegister(); return; } 
+    if (page === 'register') { initRegister(); return; }
 
     requireAuth();
     initSidebar();
     initModals();
 
     if (page === 'dashboard') {
-    await renderDashboard();
-    appliquerRestrictionsRole();
-}
+        await renderDashboard();
+        appliquerRestrictionsRole();
+    }
     if (page === 'kanban') {
-    await renderKanban();
-    initDragDrop();
-    appliquerRestrictionsRole();
-}
+        await renderKanban();
+        initDragDrop();
+        appliquerRestrictionsRole();
+    }
     if (page === 'taches') {
         const tasks = await loadTasks();
         await renderTaskList(tasks);
@@ -702,25 +726,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         appliquerRestrictionsRole();
     }
     if (page === 'nouvelle-tache') {
-    initNewTaskForm();
-    appliquerRestrictionsRole();
-}
-
-if (page === 'equipe') {
-    await renderTeam();
-    appliquerRestrictionsRole();
-}
+        initNewTaskForm();
+        appliquerRestrictionsRole();
+    }
+    if (page === 'equipe') {
+        await renderTeam();
+        appliquerRestrictionsRole();
+    }
 });
-function appliquerRestrictionsRole() {
-    const user = JSON.parse(localStorage.getItem('securetask_user'));
-    if (!user) return;
-
-    if (user.role !== 'Lead Securite') {
-        document.querySelectorAll('.btn-delete, .btn-supprimer')
-            .forEach(b => b.style.display = 'none');
-    }
-    if (user.role === 'Observateur') {
-        document.querySelectorAll('.btn-new-task, .btn-nouvelle-tache')
-            .forEach(b => b.style.display = 'none');
-    }
-}
