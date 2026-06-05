@@ -8,6 +8,35 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
+// Ajouter en haut du fichier — compteur en mémoire
+const loginAttempts = {};  // { ip: { count, blockedUntil } }
+
+// Dans la route POST /login, avant la vérification bcrypt :
+const MAX_ATTEMPTS  = 5;
+const BLOCK_MINUTES = 15;
+
+const attempts = loginAttempts[ip] || { count: 0, blockedUntil: null };
+
+// Vérifier si l'IP est bloquée
+if (attempts.blockedUntil && new Date() < new Date(attempts.blockedUntil)) {
+    const reste = Math.ceil((new Date(attempts.blockedUntil) - new Date()) / 60000);
+    return res.status(429).json({
+        success: false,
+        message: `Trop de tentatives. Réessayez dans ${reste} minute(s).`
+    });
+}
+
+// Après un login échoué :
+attempts.count++;
+if (attempts.count >= MAX_ATTEMPTS) {
+    attempts.blockedUntil = new Date(Date.now() + BLOCK_MINUTES * 60 * 1000);
+    attempts.count = 0;
+}
+loginAttempts[ip] = attempts;
+
+// Après un login réussi — réinitialiser :
+delete loginAttempts[ip];
+
 // ── Initialisation des tables + données de départ ──
 async function initDB() {
     await pool.query(`

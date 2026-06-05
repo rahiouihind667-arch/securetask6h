@@ -1,6 +1,37 @@
 // ═══════════════════════════════════════════
 //  SecureTask — main.js (version avec API)
 // ═══════════════════════════════════════════
+// Ajouter cette fonction une seule fois en haut de main.js
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g,  '&amp;')
+        .replace(/</g,  '&lt;')
+        .replace(/>/g,  '&gt;')
+        .replace(/"/g,  '&quot;')
+        .replace(/'/g,  '&#039;');
+}
+
+// Puis l'appliquer sur toutes les données utilisateur dans les templates :
+tbody.innerHTML = tasks.map(t => `
+    <td><div class="task-name">${escapeHtml(t.titre)}</div></td>
+    <td>${prioriteBadge(t.priorite)}</td>
+    <td>${formatDate(t.echeance)}</td>
+    <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+            <div class="mini-avatar" style="background:${avatarColor(t.assigneA)}">
+                ${initials(t.assigneA)}
+            </div>
+            ${escapeHtml(t.assigneA)}
+        </div>
+    </td>
+    <td>${statutBadge(t.statut)}</td>
+    <td>
+        <button class="btn btn-danger btn-sm btn-supprimer"
+                onclick="confirmDelete(${t.id})">Supprimer</button>
+    </td>
+`).join('');
+
 function authHeaders() {
     return {
         'Content-Type': 'application/json',
