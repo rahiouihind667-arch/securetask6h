@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════
-//  SecureTask — main.js (version avec API)
+//  SecureTask — main.js (version finale)
 // ═══════════════════════════════════════════
-// Ajouter cette fonction une seule fois en haut de main.js
+
+// ─── SANITISATION XSS ───
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -12,37 +13,20 @@ function escapeHtml(str) {
         .replace(/'/g,  '&#039;');
 }
 
-// Puis l'appliquer sur toutes les données utilisateur dans les templates :
-tbody.innerHTML = tasks.map(t => `
-    <td><div class="task-name">${escapeHtml(t.titre)}</div></td>
-    <td>${prioriteBadge(t.priorite)}</td>
-    <td>${formatDate(t.echeance)}</td>
-    <td>
-        <div style="display:flex;align-items:center;gap:6px;">
-            <div class="mini-avatar" style="background:${avatarColor(t.assigneA)}">
-                ${initials(t.assigneA)}
-            </div>
-            ${escapeHtml(t.assigneA)}
-        </div>
-    </td>
-    <td>${statutBadge(t.statut)}</td>
-    <td>
-        <button class="btn btn-danger btn-sm btn-supprimer"
-                onclick="confirmDelete(${t.id})">Supprimer</button>
-    </td>
-`).join('');
-
 function authHeaders() {
     return {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + localStorage.getItem('st_token')
     };
 }
+
 const API = 'https://securetask6.vercel.app/api';
+
 // ─── AUTH ───
 function isLoggedIn() {
     return !!localStorage.getItem('st_token');
 }
+
 function logout() {
     localStorage.removeItem('st_token');
     localStorage.removeItem('securetask_user');
@@ -64,9 +48,9 @@ function initLogin() {
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
-        const email = document.getElementById('email').value;
+        const email    = document.getElementById('email').value;
         const password = document.getElementById('password').value;
-        const errEl = document.getElementById('login-error');
+        const errEl    = document.getElementById('login-error');
 
         try {
             const res = await fetch(`${API}/login`, {
@@ -81,20 +65,20 @@ function initLogin() {
                 localStorage.setItem('st_token', data.token);
                 const payload = JSON.parse(atob(data.token.split('.')[1]));
                 localStorage.setItem('securetask_user', JSON.stringify({
-                    id: payload.id,
-                    nom: payload.nom,
-                    email: payload.email,
-                    role: payload.role,
+                    id:        payload.id,
+                    nom:       payload.nom,
+                    email:     payload.email,
+                    role:      payload.role,
                     initiales: payload.nom.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
                 }));
                 window.location.href = 'index.html';
             } else {
                 errEl.style.display = 'block';
-                errEl.textContent = data.message;
+                errEl.textContent   = data.message;
             }
         } catch (err) {
             errEl.style.display = 'block';
-            errEl.textContent = 'Erreur de connexion au serveur.';
+            errEl.textContent   = 'Erreur de connexion au serveur.';
         }
     });
 }
@@ -121,13 +105,13 @@ function initRegister() {
 
         if (password !== confirm) {
             errEl.style.display = 'block';
-            errEl.textContent = 'Les mots de passe ne correspondent pas.';
+            errEl.textContent   = 'Les mots de passe ne correspondent pas.';
             return;
         }
 
         if (password.length < 6) {
             errEl.style.display = 'block';
-            errEl.textContent = 'Le mot de passe doit contenir au moins 6 caractères.';
+            errEl.textContent   = 'Le mot de passe doit contenir au moins 6 caractères.';
             return;
         }
 
@@ -142,16 +126,16 @@ function initRegister() {
 
             if (data.success) {
                 sucEl.style.display = 'block';
-                sucEl.textContent = 'Compte créé avec succès !';
+                sucEl.textContent   = 'Compte créé avec succès !';
                 setTimeout(() => { window.location.href = 'connexion.html'; }, 1500);
             } else {
                 errEl.style.display = 'block';
-                errEl.textContent = data.message || 'Erreur lors de la création.';
+                errEl.textContent   = data.message || 'Erreur lors de la création.';
             }
         } catch (err) {
             console.error(err);
             errEl.style.display = 'block';
-            errEl.textContent = 'Erreur serveur.';
+            errEl.textContent   = 'Erreur serveur.';
         }
     });
 }
@@ -159,17 +143,17 @@ function initRegister() {
 // ─── TÂCHES ───
 async function loadTasks() {
     try {
-        const res = await fetch(`${API}/taches`, { headers: authHeaders() });
+        const res   = await fetch(`${API}/taches`, { headers: authHeaders() });
         const tasks = await res.json();
         return tasks.map(t => ({
-            id: t.id,
-            titre: t.titre,
+            id:          t.id,
+            titre:       t.titre,
             description: t.description,
-            priorite: t.priorite,
-            echeance: t.echeance ? t.echeance.split('T')[0] : '',
-            assigneA: t.assigne_a,
-            statut: t.statut,
-            labels: t.labels ? t.labels.split(', ') : []
+            priorite:    t.priorite,
+            echeance:    t.echeance ? t.echeance.split('T')[0] : '',
+            assigneA:    t.assigne_a,
+            statut:      t.statut,
+            labels:      t.labels ? t.labels.split(', ') : []
         }));
     } catch (err) {
         console.error('Erreur chargement tâches:', err);
@@ -179,10 +163,10 @@ async function loadTasks() {
 
 async function saveTask(task) {
     try {
-        const res = await fetch(`${API}/taches`, {
-            method: 'POST',
+        const res  = await fetch(`${API}/taches`, {
+            method:  'POST',
             headers: authHeaders(),
-            body: JSON.stringify(task)
+            body:    JSON.stringify(task)
         });
         const data = await res.json();
         if (!res.ok) {
@@ -198,8 +182,8 @@ async function saveTask(task) {
 
 async function deleteTask(id) {
     try {
-        const res = await fetch(`${API}/taches/${id}`, {
-            method: 'DELETE',
+        const res  = await fetch(`${API}/taches/${id}`, {
+            method:  'DELETE',
             headers: authHeaders()
         });
         const data = await res.json();
@@ -219,9 +203,9 @@ async function deleteTask(id) {
 async function updateTaskStatus(id, newStatus) {
     try {
         const res = await fetch(`${API}/taches/${id}`, {
-            method: 'PUT',
+            method:  'PUT',
             headers: authHeaders(),
-            body: JSON.stringify({ statut: newStatus })
+            body:    JSON.stringify({ statut: newStatus })
         });
         if (!res.ok) {
             const data = await res.json();
@@ -250,12 +234,12 @@ function filterTasks(tasks, priority, status, search) {
 function prioriteBadge(p) {
     const map   = { 'Critique': 'critique', 'Élevée': 'elevee', 'Moyenne': 'moyenne', 'Basse': 'basse' };
     const icons = { 'Critique': '🔴', 'Élevée': '🟠', 'Moyenne': '🟢', 'Basse': '⚪' };
-    return `<span class="badge badge-${map[p] || 'basse'}">${icons[p] || ''} ${p}</span>`;
+    return `<span class="badge badge-${map[p] || 'basse'}">${icons[p] || ''} ${escapeHtml(p)}</span>`;
 }
 
 function statutBadge(s) {
     const map = { 'À faire': 'afaire', 'En cours': 'encours', 'Validé': 'valide', 'Terminé': 'termine' };
-    return `<span class="badge badge-${map[s] || 'afaire'}">${s}</span>`;
+    return `<span class="badge badge-${map[s] || 'afaire'}">${escapeHtml(s)}</span>`;
 }
 
 function formatDate(dateStr) {
@@ -298,17 +282,17 @@ function showToast(msg, type = 'success') {
     const icons = { success: '✅', error: '❌', info: 'ℹ️' };
     let container = document.getElementById('toast-container');
     if (!container) {
-        container = document.createElement('div');
-        container.id = 'toast-container';
+        container           = document.createElement('div');
+        container.id        = 'toast-container';
         container.className = 'toast-container';
         document.body.appendChild(container);
     }
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `<span>${icons[type]}</span> ${msg}`;
+    const toast       = document.createElement('div');
+    toast.className   = `toast ${type}`;
+    toast.innerHTML   = `<span>${icons[type]}</span> ${msg}`;
     container.appendChild(toast);
     setTimeout(() => {
-        toast.style.opacity = '0';
+        toast.style.opacity    = '0';
         toast.style.transition = 'all 0.3s';
         setTimeout(() => toast.remove(), 300);
     }, 3500);
@@ -316,13 +300,13 @@ function showToast(msg, type = 'success') {
 
 // ─── SIDEBAR ───
 function initSidebar() {
-    const user = getUser();
+    const user       = getUser();
     const initialsEl = document.getElementById('user-initials');
     const nameEl     = document.getElementById('user-name');
     const roleEl     = document.getElementById('user-role');
     if (initialsEl) initialsEl.textContent = user.initiales || '?';
-    if (nameEl)     nameEl.textContent     = user.nom  || 'Utilisateur';
-    if (roleEl)     roleEl.textContent     = user.role || '';
+    if (nameEl)     nameEl.textContent     = user.nom       || 'Utilisateur';
+    if (roleEl)     roleEl.textContent     = user.role      || '';
 
     const hamburger = document.getElementById('hamburger');
     const sidebar   = document.querySelector('.sidebar');
@@ -389,8 +373,8 @@ async function renderDashboard() {
                 <div class="task-item">
                     <div class="priority-dot ${prioriteClass(t.priorite)}"></div>
                     <div class="task-info">
-                        <div class="task-title">${t.titre}</div>
-                        <div class="task-meta">${t.statut}</div>
+                        <div class="task-title">${escapeHtml(t.titre)}</div>
+                        <div class="task-meta">${escapeHtml(t.statut)}</div>
                     </div>
                     ${prioriteBadge(t.priorite)}
                     <div class="task-deadline">${formatDate(t.echeance)}</div>
@@ -403,8 +387,8 @@ async function renderDashboard() {
             <div class="task-item">
                 <div class="priority-dot ${prioriteClass(t.priorite)}"></div>
                 <div class="task-info">
-                    <div class="task-title">${t.titre}</div>
-                    <div class="task-meta">Assigné à ${t.assigneA}</div>
+                    <div class="task-title">${escapeHtml(t.titre)}</div>
+                    <div class="task-meta">Assigné à ${escapeHtml(t.assigneA)}</div>
                 </div>
                 ${statutBadge(t.statut)}
                 <div class="task-deadline">${formatDate(t.echeance)}</div>
@@ -433,13 +417,13 @@ async function renderKanban() {
             <div class="kanban-card" draggable="true" data-id="${t.id}">
                 <div class="card-priority">
                     ${prioriteBadge(t.priorite)}
-                    <button class="card-advance-btn" onclick="advanceTask(${t.id}, '${t.statut}')">⟳</button>
+                    <button class="card-advance-btn" onclick="advanceTask(${t.id}, '${escapeHtml(t.statut)}')">⟳</button>
                 </div>
-                <div class="card-title">${t.titre}</div>
+                <div class="card-title">${escapeHtml(t.titre)}</div>
                 <div class="card-footer">
                     <div class="card-assignee">
                         <div class="mini-avatar" style="background:${avatarColor(t.assigneA)}">${initials(t.assigneA)}</div>
-                        ${t.assigneA}
+                        ${escapeHtml(t.assigneA)}
                     </div>
                     <div class="card-date">${formatDate(t.echeance)}</div>
                 </div>
@@ -507,13 +491,13 @@ async function renderTaskList(tasks) {
 
     tbody.innerHTML = tasks.map(t => `
         <tr>
-            <td><div class="task-name">${t.titre}</div></td>
+            <td><div class="task-name">${escapeHtml(t.titre)}</div></td>
             <td>${prioriteBadge(t.priorite)}</td>
             <td style="font-family:var(--mono);font-size:13px;">${formatDate(t.echeance)}</td>
             <td>
                 <div style="display:flex;align-items:center;gap:6px;">
                     <div class="mini-avatar" style="background:${avatarColor(t.assigneA)}">${initials(t.assigneA)}</div>
-                    ${t.assigneA}
+                    ${escapeHtml(t.assigneA)}
                 </div>
             </td>
             <td>${statutBadge(t.statut)}</td>
@@ -583,7 +567,7 @@ async function renderCalendar(year, month) {
 
         html += `<div class="cal-day${isToday ? ' today' : ''}" onclick="openDayModal('${dateStr}')">
             <div class="cal-day-num">${d}</div>
-            ${dayTasks.slice(0, 2).map(t => `<span class="cal-task-pill ${prioriteClass(t.priorite)}">${t.titre}</span>`).join('')}
+            ${dayTasks.slice(0, 2).map(t => `<span class="cal-task-pill ${prioriteClass(t.priorite)}">${escapeHtml(t.titre)}</span>`).join('')}
             ${dayTasks.length > 2 ? `<span style="font-size:10px;color:var(--text-3);">+${dayTasks.length - 2} autres</span>` : ''}
         </div>`;
     }
@@ -608,8 +592,8 @@ async function openDayModal(dateStr) {
             <div class="task-item">
                 <div class="priority-dot ${prioriteClass(t.priorite)}"></div>
                 <div class="task-info">
-                    <div class="task-title">${t.titre}</div>
-                    <div class="task-meta">${t.assigneA}</div>
+                    <div class="task-title">${escapeHtml(t.titre)}</div>
+                    <div class="task-meta">${escapeHtml(t.assigneA)}</div>
                 </div>
                 ${prioriteBadge(t.priorite)}
             </div>`).join('');
@@ -618,7 +602,6 @@ async function openDayModal(dateStr) {
 }
 
 // ─── NOUVELLE TÂCHE ───
-
 function initNewTaskForm() {
     const user = getUser();
     if (user.role === 'Observateur') {
@@ -626,9 +609,10 @@ function initNewTaskForm() {
         setTimeout(() => window.location.href = 'taches.html', 1500);
         return;
     }
+
     document.querySelectorAll('.checkbox-label').forEach(label => {
         label.addEventListener('click', () => {
-            const input = label.querySelector('input');
+            const input   = label.querySelector('input');
             input.checked = !input.checked;
             label.classList.toggle('checked', input.checked);
         });
@@ -681,10 +665,10 @@ async function renderTeam() {
             return `
                 <div class="team-card">
                     <div class="team-avatar" style="background:${avatarColor(u.nom)}">${initials(u.nom)}</div>
-                    <div class="team-name">${u.nom}</div>
-                    <div class="team-role">${u.role}</div>
+                    <div class="team-name">${escapeHtml(u.nom)}</div>
+                    <div class="team-role">${escapeHtml(u.role)}</div>
                     <div class="team-tasks">${open} tâche(s) en cours · ${memberTasks.length} total</div>
-                    <div style="margin-top:8px;font-size:11px;color:var(--text-3);">${u.email}</div>
+                    <div style="margin-top:8px;font-size:11px;color:var(--text-3);">${escapeHtml(u.email)}</div>
                 </div>`;
         }).join('');
     } catch (err) {
