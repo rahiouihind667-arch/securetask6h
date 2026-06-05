@@ -8,34 +8,10 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// Ajouter en haut du fichier — compteur en mémoire
-const loginAttempts = {};  // { ip: { count, blockedUntil } }
-
-// Dans la route POST /login, avant la vérification bcrypt :
+// ── Anti-brute force — compteur en mémoire ──
+const loginAttempts = {};
 const MAX_ATTEMPTS  = 5;
 const BLOCK_MINUTES = 15;
-
-const attempts = loginAttempts[ip] || { count: 0, blockedUntil: null };
-
-// Vérifier si l'IP est bloquée
-if (attempts.blockedUntil && new Date() < new Date(attempts.blockedUntil)) {
-    const reste = Math.ceil((new Date(attempts.blockedUntil) - new Date()) / 60000);
-    return res.status(429).json({
-        success: false,
-        message: `Trop de tentatives. Réessayez dans ${reste} minute(s).`
-    });
-}
-
-// Après un login échoué :
-attempts.count++;
-if (attempts.count >= MAX_ATTEMPTS) {
-    attempts.blockedUntil = new Date(Date.now() + BLOCK_MINUTES * 60 * 1000);
-    attempts.count = 0;
-}
-loginAttempts[ip] = attempts;
-
-// Après un login réussi — réinitialiser :
-delete loginAttempts[ip];
 
 // ── Initialisation des tables + données de départ ──
 async function initDB() {
@@ -85,13 +61,14 @@ async function initDB() {
             ('Sara',         'sara@securetask.ma',  $1, 'Ingenieur SSI'),
             ('Laila',        'laila@securetask.ma', $1, 'Observateur')
         `, [hash]);
-        console.log('✅ Utilisateurs initiaux créés avec mots de passe hachés');
+        console.log('Utilisateurs initiaux créés avec mots de passe hachés');
     }
 }
 
 // Initialisation unique (mise en cache entre les invocations Vercel)
-const dbReady = initDB().catch(err => console.error('❌ initDB error:', err));
+const dbReady = initDB().catch(err => console.error('initDB error:', err));
 
+// ── Journalisation ──
 async function logEvent(event, userId, ip, details) {
     try {
         await pool.query(
@@ -103,6 +80,7 @@ async function logEvent(event, userId, ip, details) {
     }
 }
 
+// ── Vérification JWT ──
 function authMiddleware(req) {
     const header = req.headers['authorization'];
     if (!header) return null;
@@ -131,6 +109,17 @@ module.exports = async (req, res) => {
         // ── LOGIN ──
         if (url.includes('/login') && method === 'POST') {
             const { email, password } = req.body;
+
+            // Loi 6 — vérifier si l'IP est bloquée
+            const attempts = loginAttempts[ip] || { count: 0, blockedUntil: null };
+            if (attempts.blockedUntil && new Date() < new Date(attempts.blockedUntil)) {
+                const reste = Math.ceil((new Date(attempts.blockedUntil) - new Date()) / 60000);
+                return res.status(429).json({
+                    success: false,
+                    message: `Trop de tentatives. Réessayez dans ${reste} minute(s).`
+                });
+            }
+
             const result = await pool.query(
                 'SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]
             );
@@ -138,6 +127,8 @@ module.exports = async (req, res) => {
             const ok   = user && await bcrypt.compare(password, user.mot_de_passe);
 
             if (ok) {
+                // Login réussi — réinitialiser le compteur
+                delete loginAttempts[ip];
                 const token = jwt.sign(
                     { id: user.id, role: user.role, email: user.email, nom: user.nom },
                     process.env.JWT_SECRET,
@@ -146,26 +137,38 @@ module.exports = async (req, res) => {
                 await logEvent('LOGIN_OK', user.id, ip, user.email);
                 return res.json({ success: true, token });
             }
+
+            // Login échoué — incrémenter le compteur
+            attempts.count++;
+            if (attempts.count >= MAX_ATTEMPTS) {
+                attempts.blockedUntil = new Date(Date.now() + BLOCK_MINUTES * 60 * 1000);
+                attempts.count = 0;
+            }
+            loginAttempts[ip] = attempts;
             await logEvent('LOGIN_FAIL', null, ip, email);
-            return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect' });
+            return res.status(401).json({
+                success: false,
+                message: 'Email ou mot de passe incorrect'
+            });
         }
 
         // ── REGISTER ──
         if (url.includes('/register') && method === 'POST') {
             const { nom, email, password, codeAcces } = req.body;
 
+            // Loi 5 — vérification du code d'accès côté serveur
             const ROLE_BY_CODE = {
-    [process.env.ACCESS_CODE_LEAD]: 'Lead Securite',
-    [process.env.ACCESS_CODE_SSI]:  'Ingenieur SSI',
-    [process.env.ACCESS_CODE_OBS]:  'Observateur',
-};
+                [process.env.ACCESS_CODE_LEAD]: 'Lead Securite',
+                [process.env.ACCESS_CODE_SSI]:  'Ingenieur SSI',
+                [process.env.ACCESS_CODE_OBS]:  'Observateur',
+            };
 
             const role = ROLE_BY_CODE[codeAcces?.toUpperCase()];
-if (!role) {
-    return res.status(403).json({ success: false, message: "Code d'accès invalide." });
-}
+            if (!role) {
+                return res.status(403).json({ success: false, message: "Code d'accès invalide." });
+            }
 
-            if (!nom || !email || !password || !role) {
+            if (!nom || !email || !password) {
                 return res.status(400).json({ success: false, message: 'Tous les champs sont obligatoires.' });
             }
             if (password.length < 6) {
@@ -179,6 +182,7 @@ if (!role) {
                 return res.status(409).json({ success: false, message: 'Cet email est déjà utilisé.' });
             }
 
+            // Loi 1 — hachage bcrypt
             const hash = await bcrypt.hash(password, 12);
             await pool.query(
                 'INSERT INTO users (nom, email, mot_de_passe, role) VALUES ($1, $2, $3, $4)',
@@ -188,7 +192,7 @@ if (!role) {
             return res.json({ success: true, message: 'Compte créé avec succès.' });
         }
 
-        // ── Routes protégées : vérification du token ──
+        // ── Routes protégées : Loi 2 — vérification JWT ──
         const user = authMiddleware(req);
         if (!user) {
             return res.status(401).json({ error: 'Non connecté — token manquant ou invalide' });
@@ -200,7 +204,7 @@ if (!role) {
             return res.json(result.rows);
         }
 
-        // ── CREATE TÂCHE (Lead ou Ingénieur SSI) ──
+        // ── CREATE TÂCHE — Loi 3 : Lead ou Ingénieur SSI ──
         if (url.includes('/taches') && method === 'POST') {
             if (!['Lead Securite', 'Ingenieur SSI'].includes(user.role)) {
                 return res.status(403).json({ error: 'Accès refusé — rôle insuffisant' });
@@ -219,11 +223,12 @@ if (!role) {
                     (labels || []).join(', ')
                 ]
             );
+            // Loi 4 — journalisation
             await logEvent('CREATE_TASK', user.id, ip, `Tâche: ${titre}`);
             return res.json({ success: true, id: result.rows[0].id });
         }
 
-        // ── UPDATE TÂCHE (Lead ou Ingénieur SSI) ──
+        // ── UPDATE TÂCHE — Loi 3 : Lead ou Ingénieur SSI ──
         if (url.match(/\/taches\/\d+/) && method === 'PUT') {
             if (!['Lead Securite', 'Ingenieur SSI'].includes(user.role)) {
                 return res.status(403).json({ error: 'Accès refusé — rôle insuffisant' });
@@ -233,18 +238,19 @@ if (!role) {
             return res.json({ success: true });
         }
 
-        // ── DELETE TÂCHE (Lead Securite seulement) ──
+        // ── DELETE TÂCHE — Loi 3 : Lead Securite seulement ──
         if (url.match(/\/taches\/\d+/) && method === 'DELETE') {
             if (user.role !== 'Lead Securite') {
                 return res.status(403).json({ error: 'Accès refusé — rôle insuffisant' });
             }
             const id = url.split('/').pop();
             await pool.query('DELETE FROM taches WHERE id = $1', [id]);
+            // Loi 4 — journalisation
             await logEvent('DELETE_TASK', user.id, ip, `ID: ${id}`);
             return res.json({ success: true });
         }
 
-        // ── GET USERS (Lead ou Ingénieur SSI) ──
+        // ── GET USERS — Loi 3 : Lead ou Ingénieur SSI ──
         if (url.includes('/users') && method === 'GET') {
             if (!['Lead Securite', 'Ingenieur SSI'].includes(user.role)) {
                 return res.status(403).json({ error: 'Accès refusé — rôle insuffisant' });
